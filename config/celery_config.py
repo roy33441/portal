@@ -1,38 +1,42 @@
-import time
-
-import uvicorn as uvicorn
-from fastapi import FastAPI
-
-from config.celery_utils import create_celery
-from routers import universities
+import os
+from functools import lru_cache
+from kombu import Queue
 
 
-def create_app() -> FastAPI:
-    current_app = FastAPI(
-        title="Asynchronous tasks processing with Celery and RabbitMQ",
-        description="Sample FastAPI Application to demonstrate Event "
-        "driven architecture with Celery and RabbitMQ",
-        version="1.0.0",
+def route_task(name, args, kwargs, options, task=None, **kw):
+    if ":" in name:
+        queue, _ = name.split(":")
+        return {"queue": queue}
+    return {"queue": "celery"}
+
+
+class BaseConfig:
+    CELERY_BROKER_URL: str = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
+    CELERY_RESULT_BACKEND: str = os.environ.get("CELERY_RESULT_BACKEND", "rpc://")
+
+    CELERY_TASK_QUEUES: list = (
+        # default queue
+        Queue("celery"),
+        # custom queue
+        Queue("universities"),
+        Queue("university"),
     )
 
-    current_app.celery_app = create_celery()
-    current_app.include_router(universities.router)
-    return current_app
+    CELERY_TASK_ROUTES = (route_task,)
 
 
-app = create_app()
-celery = app.celery_app
+class DevelopmentConfig(BaseConfig):
+    pass
 
 
-@app.middleware("http")
-async def add_process_time_header(request, call_next):
-    print("inside middleware!")
-    start_time = time.time()
-    response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = str(f"{process_time:0.4f} sec")
-    return response
+@lru_cache()
+def get_settings():
+    config_cls_dict = {
+        "development": DevelopmentConfig,
+    }
+    config_name = os.environ.get("CELERY_CONFIG", "development")
+    config_cls = config_cls_dict[config_name]
+    return config_cls()
 
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", port=9000, reload=True)
+settings = get_settings()
