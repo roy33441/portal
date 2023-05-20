@@ -11,8 +11,10 @@ def route_task(name, args, kwargs, options, task=None, **kw):
 
 
 class BaseConfig:
-    CELERY_BROKER_URL: str = os.environ.get("CELERY_BROKER_URL", "amqp://guest:guest@localhost:5672//")
-    CELERY_RESULT_BACKEND: str = os.environ.get("CELERY_RESULT_BACKEND", "rpc://")
+    broker_url: str = os.environ.get(
+        "broker_url", "amqp://guest:guest@localhost:5672//"
+    )
+    result_backend: str = os.environ.get("result_backend", "rpc://")
 
     CELERY_TASK_QUEUES: list = (
         # default queue
@@ -29,7 +31,7 @@ class DevelopmentConfig(BaseConfig):
     pass
 
 
-@lru_cache()
+@lru_cache(maxsize=None)
 def get_settings():
     config_cls_dict = {
         "development": DevelopmentConfig,

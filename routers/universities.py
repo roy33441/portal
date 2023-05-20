@@ -50,14 +50,13 @@ async def get_universities_parallel(country: Country) -> dict:
     Return the List of universities for the countries for e.g ["turkey","india","australia"] provided
     in input in a sync way. This will use Celery to perform the subtasks in a parallel manner
     """
-
     data: dict = {}
     tasks = []
     for cnt in country.countries:
         tasks.append(get_university_task.s(cnt))
     # create a group with all the tasks
     job = group(tasks)
-    result = job.apply_async()
+    result = job.delay()
     ret_values = result.get(disable_sync_subtasks=False)
     for result in ret_values:
         data.update(result)
